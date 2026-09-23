@@ -1,0 +1,6 @@
+{
+  "name": "sonoran-shred-dashboard",
+  "private": true,
+  "scripts": {"test": "node tests/test_access.mjs && node tests/test_client.cjs"},
+  "devDependencies": {"@electric-sql/pglite": "0.3.14"}
+}
