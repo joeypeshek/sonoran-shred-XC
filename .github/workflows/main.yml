@@ -1,0 +1,59 @@
+name: Update and publish race dashboard
+
+on:
+  push:
+  workflow_dispatch:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: race-dashboard-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check uploaded folder layout
+        shell: bash
+        run: |
+          for file in index.html app.js config.js vendor/supabase.js scripts/sync_bikereg.py tests/test_sync.py tests/__init__.py; do
+            if [ ! -f "$file" ]; then
+              echo "::error::Missing $file. Unzip the full dashboard package and upload its contents to the repository root, preserving folders. Do not upload just index.html or an enclosing folder."
+              exit 1
+            fi
+          done
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test registration sync
+        run: python -m unittest tests.test_sync -v
+      - uses: actions/setup-node@v4
+        if: github.event_name != 'schedule'
+        with:
+          node-version: '22'
+      - name: Test login permissions and shared saves
+        if: github.event_name != 'schedule'
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+      - name: Fetch BikeReg and build dashboard
+        run: python scripts/sync_bikereg.py
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - name: Publish dashboard
+        id: deployment
+        uses: actions/deploy-pages@v4
